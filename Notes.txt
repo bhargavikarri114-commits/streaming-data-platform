@@ -1,0 +1,717 @@
+# Kafka Fundamentals Notes
+
+## What is Kafka?
+
+Kafka is a distributed event streaming platform used to collect, store, and process large volumes of real-time data.
+
+Think of Kafka as a highly scalable event queue that sits between systems and enables asynchronous communication.
+
+### Without Kafka
+
+Application
+↓
+Database
+
+### With Kafka
+
+Application
+↓
+Kafka
+↓
+Consumers
+↓
+Database
+
+### Benefits of Kafka
+
+* Decouples systems
+* Handles millions of events efficiently
+* Supports multiple consumers
+* Provides fault tolerance
+* Enables real-time processing
+* Acts as a buffer during traffic spikes
+
+### Does Kafka Always Require ZooKeeper?
+
+No.
+
+Since Kafka 3.x, Kafka can run without ZooKeeper using **KRaft (Kafka Raft Mode)**, which manages cluster metadata internally.
+
+---
+
+# Core Kafka Components
+
+## 1. Kafka Broker
+
+### Definition
+
+A Kafka Broker is a Kafka server responsible for storing and managing messages.
+
+### Responsibilities
+
+* Receives messages from Producers
+* Stores messages in Topics
+* Serves messages to Consumers
+* Manages partitions and offsets
+
+### Example
+
+Kafka Cluster
+
+Broker 1
+
+Broker 2
+
+Broker 3
+
+A Kafka cluster can contain one or more brokers.
+
+### In Our Project
+
+Docker Container
+↓
+Kafka Broker
+
+Current Setup:
+
+* 1 Broker
+
+### Interview Answer
+
+A Kafka Broker is a server within a Kafka cluster that stores messages and handles communication between producers and consumers.
+
+---
+
+## 2. Topic
+
+### Definition
+
+A Topic is a logical channel used to organize and store messages in Kafka.
+
+Producers write messages to Topics, and Consumers read messages from Topics.
+
+### Database Analogy
+
+| Database | Kafka         |
+| -------- | ------------- |
+| Database | Cluster       |
+| Table    | Topic         |
+| Row      | Message/Event |
+
+### Example Topics
+
+* orders
+* payments
+* customers
+
+### In Our Project
+
+Topic Name: **orders**
+
+All order-related events will be stored in this topic.
+
+### Create Topic
+
+```bash
+docker exec -it kafka /opt/kafka/bin/kafka-topics.sh \
+--create \
+--topic orders \
+--bootstrap-server localhost:9092 \
+--partitions 1 \
+--replication-factor 1
+```
+
+### List Topics
+
+```bash
+docker exec -it kafka /opt/kafka/bin/kafka-topics.sh \
+--list \
+--bootstrap-server localhost:9092
+```
+
+### Interview Answer
+
+A Topic is a logical category in Kafka where producers publish messages and consumers subscribe to read them.
+
+---
+
+## 3. Producer
+
+### Definition
+
+A Producer is an application or service that publishes messages to a Kafka Topic.
+
+### Example
+
+Order Service
+↓
+Producer
+↓
+orders Topic
+
+### Responsibilities
+
+* Create messages
+* Serialize data
+* Send messages to Kafka Topics
+
+### Why Use Kafka Between Applications and Databases?
+
+Suppose 10,000 orders arrive simultaneously.
+
+Without Kafka:
+
+Application → Database
+
+The database may become overloaded.
+
+With Kafka:
+
+Application → Kafka → Consumers → Database
+
+Kafka safely stores incoming messages, and consumers process them at their own speed.
+
+This prevents database overload and improves system reliability.
+
+### Can a Producer Send Messages Directly to a Consumer?
+
+No.
+
+A Producer writes messages to a Topic.
+
+Consumers independently read messages from that Topic.
+
+The Producer does not know who the Consumers are.
+
+This loose coupling is one of Kafka's biggest advantages.
+
+### Interview Answer
+
+A Producer is a client application that publishes messages to Kafka Topics.
+
+---
+
+## 4. Event / Message
+
+### Definition
+
+A Message (or Event) is a single piece of data sent from a Producer to a Kafka Topic.
+
+### Example
+
+```json
+{
+  "order_id": 1001,
+  "customer_id": 501,
+  "product": "Laptop",
+  "quantity": 2,
+  "price": 60000
+}
+```
+
+This event represents:
+
+"Customer placed an order."
+
+### Database Analogy
+
+| Database | Kafka         |
+| -------- | ------------- |
+| Row      | Message/Event |
+
+### Interview Answer
+
+A Message or Event is an individual record of data stored in a Kafka Topic.
+
+---
+
+## 5. Partition
+
+### Definition
+
+A Partition is a subdivision of a Topic that stores messages in order.
+
+Partitions allow Kafka to scale horizontally and support parallel processing.
+
+### Example
+
+Topic with 1 Partition
+
+orders
+
+└── Partition 0
+
+Topic with 3 Partitions
+
+orders
+
+├── Partition 0
+
+├── Partition 1
+
+└── Partition 2
+
+### Why Multiple Partitions?
+
+Benefits:
+
+* Parallel processing
+* Higher throughput
+* Better scalability
+
+Example:
+
+Partition 0 → Consumer 1
+
+Partition 1 → Consumer 2
+
+Partition 2 → Consumer 3
+
+Multiple consumers can process data simultaneously.
+
+### Important Rule
+
+Within the same Consumer Group:
+
+# Maximum Active Consumers
+
+Number of Partitions
+
+Example:
+
+3 Partitions = Up to 3 active consumers
+
+### Interview Answer
+
+A Partition is a unit of storage within a Kafka Topic that enables parallel processing and scalability.
+
+---
+
+## 6. Replication Factor
+
+### Definition
+
+Replication Factor determines how many copies of a partition Kafka maintains across brokers.
+
+### Example
+
+Replication Factor = 1
+
+Broker 1
+
+└── Partition 0
+
+Replication Factor = 3
+
+Broker 1 → Leader
+
+Broker 2 → Replica
+
+Broker 3 → Replica
+
+### Purpose
+
+* Fault Tolerance
+* High Availability
+* Data Protection
+
+### In Our Project
+
+Replication Factor = 1
+
+Reason:
+
+We currently have only 1 Broker.
+
+### Interview Answer
+
+Replication Factor specifies the number of copies of a partition maintained across brokers to ensure fault tolerance.
+
+---
+
+## 7. Consumer
+
+### Definition
+
+A Consumer is an application that reads messages from Kafka Topics.
+
+### Example
+
+orders Topic
+↓
+Consumer
+↓
+Spark
+
+### Multiple Consumers
+
+Yes, multiple consumers can read from the same Topic.
+
+Example:
+
+orders Topic
+│
+├── Analytics Service
+├── Dashboard Service
+└── Fraud Detection Service
+
+Each service can process the same event independently.
+
+### Read Messages from Topic
+
+```bash
+kafka-console-consumer.sh \
+--topic orders \
+--bootstrap-server localhost:9092 \
+--from-beginning
+```
+
+### Interview Answer
+
+A Consumer is a client application that subscribes to Kafka Topics and processes messages.
+
+---
+
+## 8. Offset
+
+### Definition
+
+An Offset is a unique sequential number assigned to each message within a partition.
+
+Kafka uses offsets to track consumer progress and maintain message order.
+
+### Example
+
+Offset 0 → Order 1001
+
+Offset 1 → Order 1002
+
+Offset 2 → Order 1003
+
+### Purpose
+
+* Track consumer progress
+* Resume processing after restart
+* Maintain message order
+
+### Example
+
+Consumer processed:
+
+Offset 0
+
+Offset 1
+
+After restart, it resumes from:
+
+Offset 2
+
+### Interview Answer
+
+An Offset is a unique identifier for a message within a partition that helps Kafka track consumer positions.
+
+---
+
+# Current Project Summary
+
+Producer.py
+↓
+orders Topic
+↓
+Partition 0
+↓
+Kafka Broker
+↓
+Consumer (Next Step)
+
+Current Configuration:
+
+* Broker = 1
+* Topic = orders
+* Partitions = 1
+* Replication Factor = 1
+
+---
+
+# Quick Interview Revision
+
+| Component          | Purpose                                      |
+| ------------------ | -------------------------------------------- |
+| Broker             | Stores and serves messages                   |
+| Topic              | Logical channel for messages                 |
+| Producer           | Writes messages to Kafka                     |
+| Consumer           | Reads messages from Kafka                    |
+| Message/Event      | Individual record of data                    |
+| Partition          | Enables scalability and parallel processing  |
+| Replication Factor | Provides fault tolerance                     |
+| Offset             | Tracks consumer progress                     |
+| KRaft              | Kafka mode that removes ZooKeeper dependency |
+
+# 8. Consumer
+
+## Definition
+
+A Consumer is an application that reads messages from a Kafka Topic.
+
+### Example
+
+```text
+Producer
+    ↓
+orders Topic
+    ↓
+Consumer
+```
+
+The Producer writes data.
+
+The Consumer reads data.
+
+---
+
+## In Our Project
+
+Later, our PySpark application will act as a Consumer.
+
+```text
+Producer.py
+    ↓
+orders Topic
+    ↓
+PySpark Consumer
+```
+
+---
+
+## Responsibilities
+
+* Read messages from Kafka Topics
+* Process data
+* Transform data
+* Load data into target systems
+
+Example:
+
+```text
+Kafka
+   ↓
+PySpark Consumer
+   ↓
+PostgreSQL
+```
+
+---
+
+## Interview Answer
+
+A Consumer is a client application that subscribes to Kafka Topics and reads messages for processing.
+
+---
+
+# 9. Consumer Group
+
+## Definition
+
+A Consumer Group is a collection of Consumers working together to process messages from a Topic.
+
+### Example
+
+```text
+Consumer Group: analytics
+
+Consumer 1
+Consumer 2
+Consumer 3
+```
+
+Kafka distributes partitions among consumers in the same group.
+
+---
+
+## Why Consumer Groups?
+
+Consumer Groups provide:
+
+* Parallel Processing
+* Scalability
+* Load Balancing
+
+---
+
+## Example 1
+
+Topic:
+
+```text
+orders
+
+Partition 0
+Partition 1
+Partition 2
+```
+
+Consumers:
+
+```text
+Consumer 1
+Consumer 2
+Consumer 3
+```
+
+Assignment:
+
+```text
+Partition 0 → Consumer 1
+
+Partition 1 → Consumer 2
+
+Partition 2 → Consumer 3
+```
+
+All consumers process data simultaneously.
+
+---
+
+## Example 2
+
+Topic:
+
+```text
+orders
+
+Partition 0
+Partition 1
+Partition 2
+```
+
+Consumers:
+
+```text
+Consumer 1
+Consumer 2
+Consumer 3
+Consumer 4
+Consumer 5
+```
+
+Assignment:
+
+```text
+Partition 0 → Consumer 1
+
+Partition 1 → Consumer 2
+
+Partition 2 → Consumer 3
+
+Consumer 4 → Idle
+
+Consumer 5 → Idle
+```
+
+Important Rule:
+
+```text
+Maximum Active Consumers
+=
+Number of Partitions
+```
+
+---
+
+## Interview Question
+
+Can two consumers in the same consumer group read the same partition?
+
+Answer:
+
+No.
+
+Within a consumer group, a partition can be assigned to only one consumer at a time.
+
+---
+
+## Multiple Consumer Groups
+
+Topic:
+
+```text
+orders
+```
+
+Consumer Group 1:
+
+```text
+Analytics Team
+```
+
+Consumer Group 2:
+
+```text
+Fraud Detection Team
+```
+
+Consumer Group 3:
+
+```text
+Reporting Team
+```
+
+Diagram:
+
+```text
+                 orders Topic
+
+                 /    |    \
+
+                /     |     \
+
+        Analytics   Fraud   Reporting
+```
+
+All groups receive the same messages independently.
+
+---
+
+## Interview Answer
+
+A Consumer Group is a set of consumers that work together to read data from a Kafka Topic. Kafka distributes partitions among consumers within the group to enable parallel processing and scalability.
+
+---
+
+# Important Kafka Rule
+
+Within a Consumer Group:
+
+```text
+1 Partition
+=
+1 Active Consumer
+```
+
+Examples:
+
+```text
+Partitions = 1
+Consumers = 3
+
+Result:
+1 Active Consumer
+2 Idle Consumers
+```
+
+```text
+Partitions = 3
+Consumers = 3
+
+Result:
+3 Active Consumers
+```
+
+```text
+Partitions = 5
+Consumers = 3
+
+Result:
+3 Active Consumers
+2 Partitions shared among them
+```

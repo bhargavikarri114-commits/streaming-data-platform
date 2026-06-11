@@ -1,23 +1,19 @@
 from kafka import KafkaProducer
 import json
+import time
 
-# Connect Python to Kafka
+from data_generator import generate_order
+
 producer = KafkaProducer(
-    bootstrap_servers='localhost:9092', # Kafka Broker
+    bootstrap_servers='localhost:9092',
     value_serializer=lambda v: json.dumps(v).encode('utf-8')
 )
-# Kafka stores bytes, not Python dictionaries, 
-# so we need to serialize the data before sending it to Kafka. 
-# We use JSON serialization here.
 
-order = {
-    "order_id": 1001,
-    "customer_id": 501,
-    "product": "Laptop",
-    "quantity": 2,
-    "price": 60000
-}
+order_id = 1001
 
-producer.send('orders', order) # Send Event sends the order into the orders topic.
-producer.flush()
-print("Order sent successfully!")
+while True:
+    order = generate_order(order_id)
+    producer.send('orders', value=order)
+    print(f"Sent order: {order}")
+    order_id += 1
+    time.sleep(2)  # Simulate delay between orders

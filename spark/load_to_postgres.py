@@ -7,10 +7,7 @@ from pyspark.sql import SparkSession # type: ignore
 from pyspark.sql.types import * # type: ignore
 from pyspark.sql.functions import * # type: ignore
 from pyspark.sql.functions import col, from_json, sum, count, round, to_date, to_timestamp # type: ignore
-from pyspark.sql import Row # type: ignore
-import time
 
-print("Python timezone:", time.tzname)
 spark = SparkSession.builder \
     .appName("LoadToPostgres") \
     .config(
@@ -32,8 +29,6 @@ spark = SparkSession.builder \
     .getOrCreate()
 
 spark.conf.set("spark.sql.session.timeZone", "UTC")
-
-print("Spark TimeZone:", spark.conf.get("spark.sql.session.timeZone"))
 
 spark.sparkContext.setLogLevel("WARN")
 
@@ -62,15 +57,10 @@ parsed_df = df.select(
         ).alias("data")
     ).select("data.*")
 
-
-parsed_df.show(truncate=False)
-
 sales_df = parsed_df.withColumn(
     "total_amount",
     col("quantity") * col("price")
 )
-
-sales_df.show(truncate=False)
     
 postgres_df = sales_df.withColumnRenamed(
     "timestamp",
@@ -81,8 +71,6 @@ postgres_df = postgres_df.withColumn(
     "order_timestamp",
     to_timestamp(col("order_timestamp"))
 )
-
-postgres_df.printSchema()
 
 postgres_df.write \
     .format("jdbc") \
